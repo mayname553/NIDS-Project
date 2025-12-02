@@ -1,0 +1,4 @@
+runtime_field,how_to_compute_train_feature
+Age,SAME_AS_RUNTIME_OR_CUSTOM
+Name,SAME_AS_RUNTIME_OR_CUSTOM
+City,SAME_AS_RUNTIME_OR_CUSTOM

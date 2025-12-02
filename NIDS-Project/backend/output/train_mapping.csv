@@ -1,0 +1,8 @@
+original_column,train_feature
+Age,Age
+Name,Name__ohe__Alice
+Name,Name__ohe__Bob
+Name,Name__ohe__Charlie
+City,City__ohe__London
+City,City__ohe__New York
+City,City__ohe__Tokyo

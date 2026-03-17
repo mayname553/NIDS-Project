@@ -7,6 +7,7 @@ from datetime import datetime
 import logging
 import requests
 from collections import defaultdict
+import os
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,14 +22,39 @@ class NetworkAttackDetector:
             'high_network_connections': 100,  # 网络连接数阈值
             'port_scan_threshold': 10,  # 端口扫描阈值
         }
-        
+
+        # 尝试加载AI模型
+        self.ai_detector = None
+        self.use_ai = False
+        self._load_ai_model()
+
+    def _load_ai_model(self):
+        """加载AI模型"""
+        try:
+            model_path = 'model/nids_model.pkl'
+            preprocessor_path = 'model/preprocessor.pkl'
+
+            # 检查模型文件是否存在
+            if os.path.exists(model_path) and os.path.exists(preprocessor_path):
+                from ai_detector import AIDetector
+                self.ai_detector = AIDetector(model_path, preprocessor_path)
+                self.use_ai = True
+                logger.info("✅ AI模型已加载，启用智能检测模式")
+            else:
+                logger.warning("⚠️ AI模型文件不存在，使用规则检测模式")
+                logger.info(f"   请运行 'python train_and_save.py' 训练模型")
+        except Exception as e:
+            logger.warning(f"⚠️ AI模型加载失败: {e}")
+            logger.info("   使用规则检测模式")
+            self.use_ai = False
+
     def detect_ddos_attack(self):
         """检测DDoS攻击"""
         try:
             # 检查网络连接数
             connections = psutil.net_connections()
             connection_count = len(connections)
-            
+
             if connection_count > self.attack_thresholds['high_network_connections']:
                 self.suspicious_activities.append({
                     'type': 'DDoS攻击',
@@ -48,7 +74,7 @@ class NetworkAttackDetector:
             # 模拟检测端口扫描 - 实际中需要更复杂的逻辑
             net_stats = psutil.net_io_counters()
             packet_count = net_stats.packets_sent + net_stats.packets_recv
-            
+
             # 这里简化检测逻辑，实际应该分析端口访问模式
             if packet_count > 1000:  # 简单的包数量阈值
                 self.suspicious_activities.append({
@@ -71,13 +97,13 @@ class NetworkAttackDetector:
             for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
                 try:
                     # 检查高资源占用的未知进程
-                    if (proc.info['cpu_percent'] > 50 or 
+                    if (proc.info['cpu_percent'] > 50 or
                         proc.info['memory_percent'] > 50):
                         if self.is_suspicious_process(proc.info['name']):
                             suspicious_processes.append(proc.info)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
-            
+
             if suspicious_processes:
                 self.suspicious_activities.append({
                     'type': '恶意软件活动',
@@ -197,7 +223,8 @@ class NetworkAttackDetector:
                 'hostname': socket.gethostname()
             },
             'detected_attacks': self.suspicious_activities,
-            'recommendations': []
+            'recommendations': [],
+            'ai_enabled': self.use_ai
         }
 
         if self.suspicious_activities:
@@ -220,28 +247,44 @@ class NetworkAttackDetector:
         return report
 
     def run_detection(self):
-        """运行所有检测"""
-        logger.info("开始网络安全检测...")
-        
-        # 执行各项检测
-        detectors = [
+        """运行所有检测（混合模式：规则检测 + AI检测）"""
+        detection_mode = "AI智能检测" if self.use_ai else "规则检测"
+        logger.info(f"开始网络安全检测... (模式: {detection_mode})")
+
+        # 清空之前的检测结果
+        self.suspicious_activities = []
+
+        # 1. 规则检测（快速筛选）
+        rule_detectors = [
             self.detect_ddos_attack,
             self.detect_port_scan,
             self.detect_malware_activity,
             self.detect_brute_force,
             self.system_health_check
         ]
-        
-        for detector in detectors:
+
+        for detector in rule_detectors:
             try:
                 detector()
             except Exception as e:
-                logger.error(f"检测器执行错误: {e}")
-        
+                logger.error(f"规则检测器执行错误: {e}")
+
+        # 2. AI检测（精确判断）
+        if self.use_ai and self.ai_detector:
+            try:
+                ai_threats = self.ai_detector.detect_threats()
+                if ai_threats:
+                    logger.info(f"🤖 AI检测到 {len(ai_threats)} 个威胁")
+                    self.suspicious_activities.extend(ai_threats)
+                else:
+                    logger.info("🤖 AI检测: 未发现威胁")
+            except Exception as e:
+                logger.error(f"AI检测错误: {e}")
+
         # 生成报告
         report = self.generate_report()
         self.display_report(report)
-        
+
         return report
 
     def display_report(self, report):
@@ -252,16 +295,19 @@ class NetworkAttackDetector:
         print(f"检测时间: {report['timestamp']}")
         print(f"系统状态: {report['status']}")
         print(f"主机名: {report['system_info']['hostname']}")
-        
+        print(f"检测模式: {'AI智能检测' if report.get('ai_enabled') else '规则检测'}")
+
         if report['detected_attacks']:
             print("\n发现的威胁:")
             for i, attack in enumerate(report['detected_attacks'], 1):
                 print(f"{i}. {attack['type']} - 严重程度: {attack['severity']}")
                 print(f"   描述: {attack['description']}")
+                if 'confidence' in attack:
+                    print(f"   置信度: {attack['confidence']*100:.1f}%")
                 print(f"   解决方案: {attack['solution']}")
         else:
             print("\n未发现明显安全威胁")
-        
+
         print("\n建议措施:")
         for rec in report['recommendations']:
             print(f"• {rec}")
@@ -269,18 +315,18 @@ class NetworkAttackDetector:
 def main():
     """主函数"""
     detector = NetworkAttackDetector()
-    
+
     try:
         # 运行检测
         report = detector.run_detection()
-        
+
         # 可选：将报告保存到文件
         with open('security_report.txt', 'w') as f:
             import json
             json.dump(report, f, indent=2, ensure_ascii=False)
-            
+
         logger.info("检测完成，报告已保存到 security_report.txt")
-        
+
     except KeyboardInterrupt:
         logger.info("检测被用户中断")
     except Exception as e:

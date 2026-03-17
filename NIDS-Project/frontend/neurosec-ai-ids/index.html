@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroSec-Aegis | 基于智能模型与动态优化的轻量级网络入侵检测系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        /* =========================================
+           NeuroSec-Aegis 核心样式表 (赛博朋克深空主题)
+           ========================================= */
+        :root {
+            --bg-dark: #05070a;
+            --panel-bg: rgba(10, 15, 25, 0.7);
+            --panel-border: rgba(0, 229, 255, 0.2);
+            --accent-cyan: #00E5FF;
+            --accent-purple: #8A2BE2;
+            --danger-red: #FF3366;
+            --warning-yellow: #FFC107;
+            --success-green: #00FF88;
+            --text-main: #E2E8F0;
+            --text-muted: #64748B;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Exo 2', sans-serif;
+            background-image:
+                radial-gradient(circle at 15% 50%, rgba(0, 229, 255, 0.03), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(138, 43, 226, 0.03), transparent 25%),
+                linear-gradient(rgba(0, 229, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 229, 255, 0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .orbitron-text { font-family: 'Orbitron', sans-serif; letter-spacing: 1px; }
+        .text-accent { color: var(--accent-cyan); text-shadow: 0 0 8px rgba(0, 229, 255, 0.4); }
+        .text-danger { color: var(--danger-red); text-shadow: 0 0 8px rgba(255, 51, 102, 0.4); }
+        .text-warning { color: var(--warning-yellow); }
+        .text-success { color: var(--success-green); }
+
+        .hidden { display: none !important; }
+
+        /* Glassmorphism 面板通用样式 */
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+        /* 扫描线光泽效果 */
+        .glass-panel::before {
+            content: '';
+            position: absolute; top: 0; left: -100%; width: 50%; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+            animation: scanline 4s linear infinite;
+        }
+        @keyframes scanline { 0% { left: -100%; } 100% { left: 200%; } }
+
+        /* ================= 登录视图 ================= */
+        #login-view {
+            display: flex; justify-content: center; align-items: center; min-height: 100vh;
+        }
+        .login-container { width: 100%; max-width: 440px; padding: 40px; text-align: center; }
+        .logo-hexagon {
+            font-size: 3.5rem; color: var(--accent-cyan); margin-bottom: 15px;
+            animation: pulse-glow 2s infinite alternate;
+        }
+        @keyframes pulse-glow {
+            from { text-shadow: 0 0 10px rgba(0,229,255,0.2); transform: scale(1); }
+            to { text-shadow: 0 0 25px rgba(0,229,255,0.8); transform: scale(1.05); }
+        }
+        .system-title-login { font-size: 1.8rem; margin-bottom: 5px; }
+        .login-subtitle { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 25px; }
+        .tech-tags { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; }
+        .tech-tags span {
+            font-size: 0.75rem; padding: 4px 10px; border-radius: 12px;
+            background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.3); color: var(--accent-cyan);
+        }
+
+        .input-cyber { position: relative; margin-bottom: 20px; text-align: left; }
+        .input-cyber i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+        .input-cyber input {
+            width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-main); padding: 14px 14px 14px 45px; border-radius: 4px;
+            font-family: 'Exo 2', sans-serif; transition: all 0.3s;
+        }
+        .input-cyber input:focus { outline: none; border-color: var(--accent-cyan); box-shadow: 0 0 15px rgba(0, 229, 255, 0.2); }
+
+        /* 按钮通用 */
+        .cyber-btn {
+            width: 100%; padding: 14px 24px; border: none; border-radius: 4px;
+            font-family: 'Orbitron', sans-serif; font-weight: 600; font-size: 0.95rem;
+            cursor: pointer; transition: all 0.3s ease; text-transform: uppercase;
+            display: flex; justify-content: center; align-items: center; gap: 10px; position: relative; overflow: hidden;
+        }
+        .primary-btn {
+            background: linear-gradient(135deg, #00b3cc, var(--accent-cyan)); color: #000;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+        }
+        .primary-btn:hover { box-shadow: 0 0 25px rgba(0, 229, 255, 0.6); transform: translateY(-2px); }
+
+        /* 加载动画 */
+        .loader { display: none; border: 3px solid rgba(0,0,0,0.3); border-top: 3px solid #000; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* ================= 控制台视图 ================= */
+        .dashboard-layout { padding: 20px; display: flex; flex-direction: column; gap: 20px; height: 100vh;}
+
+        .top-navbar { display: flex; justify-content: space-between; align-items: center; padding: 15px 25px; }
+        .logo-container { display: flex; align-items: center; gap: 15px; }
+        .logo-container i { font-size: 2rem; }
+        .nav-info { display: flex; align-items: center; gap: 30px; font-size: 0.9rem; }
+        .status-indicator { display: flex; align-items: center; gap: 10px; }
+        .status-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--success-green); box-shadow: 0 0 10px var(--success-green); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+
+        .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+        .metric-card { padding: 20px; display: flex; align-items: center; gap: 20px; border-left: 4px solid var(--accent-cyan); }
+        .alert-card { border-left-color: var(--danger-red); }
+        .metric-icon { font-size: 2.5rem; color: rgba(255,255,255,0.1); }
+        .metric-data h4 { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;}
+        .metric-data .value { font-size: 1.8rem; font-weight: 700; margin-bottom: 2px; }
+        .metric-data .sub-value { font-size: 0.75rem; color: #829AB1; }
+
+        .main-content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; flex: 1; min-height: 0; }
+        .panel-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.2); }
+        .panel-header h3 { font-size: 1rem; font-weight: 500; letter-spacing: 1px;}
+
+        /* 威胁图谱区 */
+        .attack-stats { display: flex; flex-direction: column; }
+        .progress-list { padding: 20px; display: grid; gap: 15px; }
+        .progress-item .progress-info { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; }
+        .progress-bar-bg { background: rgba(255,255,255,0.05); height: 6px; border-radius: 3px; overflow: hidden; position: relative; }
+        .progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease-out; position: relative; }
+        .progress-fill::after { content:''; position: absolute; top:0; right:0; bottom:0; width:20px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8)); opacity: 0.5; }
+
+        .danger-fill { background: var(--danger-red); box-shadow: 0 0 10px var(--danger-red); }
+        .warning-fill { background: var(--warning-yellow); box-shadow: 0 0 10px var(--warning-yellow); }
+        .accent-fill { background: var(--accent-cyan); box-shadow: 0 0 10px var(--accent-cyan); }
+        .normal-fill { background: var(--text-muted); }
+
+        #topology-chart { flex: 1; width: 100%; min-height: 250px; }
+
+        /* 终端日志区 */
+        .live-logs { display: flex; flex-direction: column; }
+        .log-terminal { flex: 1; padding: 15px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.85rem; scroll-behavior: smooth; }
+        .log-terminal::-webkit-scrollbar { width: 6px; }
+        .log-terminal::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        .log-terminal::-webkit-scrollbar-thumb { background: rgba(0,229,255,0.3); border-radius: 3px; }
+
+        .log-entry { margin-bottom: 8px; line-height: 1.5; padding-left: 10px; border-left: 2px solid transparent; animation: slideIn 0.3s ease-out; word-break: break-all;}
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        .log-time { color: #5c6c7c; margin-right: 8px;}
+        .log-entry.info { border-left-color: var(--accent-cyan); }
+        .log-entry.info .log-tag { color: var(--accent-cyan); }
+        .log-entry.warn { border-left-color: var(--warning-yellow); }
+        .log-entry.warn .log-tag { color: var(--warning-yellow); }
+        .log-entry.error { border-left-color: var(--danger-red); background: rgba(255,51,102,0.05); }
+        .log-entry.error .log-tag { color: var(--danger-red); font-weight: bold; }
+
+        /* 底部控制台 */
+        .control-panel { display: flex; gap: 15px; justify-content: center; padding: 15px; }
+        .control-panel .cyber-btn { width: auto; min-width: 160px; font-size: 0.85rem; padding: 10px 20px;}
+        .danger-btn { background: rgba(255,51,102,0.1); border: 1px solid var(--danger-red); color: var(--danger-red); }
+        .danger-btn:hover { background: var(--danger-red); color: #fff; box-shadow: 0 0 15px var(--danger-red); }
+        .outline-btn { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); }
+        .outline-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+        @media (max-width: 1024px) {
+            .metrics-row, .main-content-grid { grid-template-columns: 1fr; }
+            .dashboard-layout { height: auto; }
+            #topology-chart { min-height: 300px; }
+        }
+
+        /* 通知动画 */
+        @keyframes slideInRight {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(400px); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ================= 视图 1：军工级认证网关 ================= -->
+    <div id="login-view">
+        <div class="login-container glass-panel">
+            <div class="logo-hexagon">
+                <i class="fas fa-shield-virus"></i>
+            </div>
+            <h1 class="orbitron-text system-title-login">NeuroSec<span class="text-accent">-Aegis</span></h1>
+            <p class="login-subtitle">基于智能模型与动态优化的轻量级网络入侵检测系统 v2.6.3</p>
+            <div class="tech-tags">
+                <span>INT8 量化引擎</span>
+                <span>TD3 策略网</span>
+                <span>DPDK 加速</span>
+            </div>
+
+            <form id="login-form">
+                <div class="input-cyber">
+                    <i class="fas fa-user-astronaut"></i>
+                    <input type="text" id="username" placeholder="管理员识别码 (ID)" value="Admin_SecOps" required>
+                </div>
+                <div class="input-cyber">
+                    <i class="fas fa-fingerprint"></i>
+                    <input type="password" id="password" placeholder="高权限访问密钥" value="*********" required>
+                </div>
+
+                <button type="submit" class="cyber-btn primary-btn" id="login-btn">
+                    <span class="btn-text">建立安全连接 (ESTABLISH)</span>
+                    <div class="loader" id="login-loader"></div>
+                </button>
+            </form>
+
+            <div style="margin-top: 25px; font-size: 0.8rem; color: var(--text-muted);">
+                <i class="fas fa-lock"></i> AES-256-GCM / TLS 1.3 军工级加密信道已就绪
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 视图 2：中枢控制台 ================= -->
+    <div id="dashboard-view" class="hidden">
+        <div class="dashboard-layout">
+            <!-- 顶部导航 -->
+            <header class="top-navbar glass-panel">
+                <div class="logo-container">
+                    <i class="fas fa-shield-alt text-accent"></i>
+                    <h1 class="orbitron-text" style="font-size: 1.4rem;">NeuroSec<span class="text-accent">-Aegis</span> <span style="font-size: 0.9rem; color: var(--text-muted); font-family: 'Exo 2', sans-serif; font-weight: normal; margin-left: 10px;">异常流量精准识别系统</span></h1>
+                </div>
+                <div class="nav-info">
+                    <div><i class="fas fa-brain text-accent"></i> 双核引擎: CNN-LSTM / TD3</div>
+                    <div><i class="far fa-clock"></i> <span id="current-time">00:00:00</span></div>
+                    <div class="status-indicator" id="global-status-indicator">
+                        <div class="status-pulse secure" id="pulse-dot"></div>
+                        <span>防御姿态: <span class="text-success" id="defcon-status">DEFCON 4 (安全)</span></span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 核心数据指标卡片 -->
+            <section class="metrics-row">
+                <div class="metric-card glass-panel">
+                    <div class="metric-icon"><i class="fas fa-radar"></i></div>
+                    <div class="metric-data">
+                        <h4>累积解析包数 (DPDK)</h4>
+                        <p class="value orbitron-text text-accent" id="total-scans">0</p>
+                        <p class="sub-value">吞吐率: ~0 Gbps</p>
+                    </div>
+                </div>
+                <div class="metric-card glass-panel" id="threat-card">
+                    <div class="metric-icon"><i class="fas fa-biohazard"></i></div>
+                    <div class="metric-data">
+                        <h4>捕获威胁实体</h4>
+                        <p class="value orbitron-text text-danger" id="threat-count">0</p>
+                        <p class="sub-value text-danger" id="threat-rate">威胁占比: 0%</p>
+                    </div>
+                </div>
+                <div class="metric-card glass-panel">
+                    <div class="metric-icon"><i class="fas fa-microchip"></i></div>
+                    <div class="metric-data">
+                        <h4>AI 引擎状态</h4>
+                        <p class="value text-warning" id="engine-status">未启动</p>
+                        <p class="sub-value" id="inference-time">平均推理延迟: --</p>
+                    </div>
+                </div>
+                <div class="metric-card glass-panel">
+                    <div class="metric-icon"><i class="fas fa-bolt"></i></div>
+                    <div class="metric-data">
+                        <h4>最后阻断指令</h4>
+                        <p class="value orbitron-text" id="last-block-time">--:--:--</p>
+                        <p class="sub-value">系统响应延时: <span class="text-accent">--</span></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 主要内容区：图表与日志 -->
+            <div class="main-content-grid">
+                <!-- 左侧：威胁图谱与拓扑 -->
+                <section class="attack-stats glass-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-chart-network"></i> 威胁态势图谱 (MITRE ATT&CK)</h3>
+                    </div>
+                    <div class="progress-list">
+                        <div class="progress-item">
+                            <div class="progress-info">
+                                <span>DDoS洪泛攻击 (基于Krishnan动力学模型)</span>
+                                <span class="orbitron-text text-danger" id="prog-ddos-val">0%</span>
+                            </div>
+                            <div class="progress-bar-bg"><div class="progress-fill danger-fill" id="prog-ddos-bar" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="progress-item">
+                            <div class="progress-info">
+                                <span>APT 隐蔽隧道异常 (马氏距离超标)</span>
+                                <span class="orbitron-text text-warning" id="prog-apt-val">0%</span>
+                            </div>
+                            <div class="progress-bar-bg"><div class="progress-fill warning-fill" id="prog-apt-bar" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="progress-item">
+                            <div class="progress-info">
+                                <span>WebShell / SQL注入 (跨模态注意力识别)</span>
+                                <span class="orbitron-text text-accent" id="prog-web-val">0%</span>
+                            </div>
+                            <div class="progress-bar-bg"><div class="progress-fill accent-fill" id="prog-web-bar" style="width: 0%;"></div></div>
+                        </div>
+                    </div>
+                    <!-- ECharts 预留容器 -->
+                    <div id="topology-chart"></div>
+                </section>
+
+                <!-- 右侧：实时日志流 -->
+                <section class="live-logs glass-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-terminal"></i> 智能决策终端流 (STIX 2.1)</h3>
+                        <div style="display: flex; gap: 10px; font-size: 0.8rem;">
+                            <span style="color: var(--accent-cyan);"><i class="fas fa-circle"></i> 态势</span>
+                            <span style="color: var(--warning-yellow);"><i class="fas fa-circle"></i> 预警</span>
+                            <span style="color: var(--danger-red);"><i class="fas fa-circle"></i> 拦截</span>
+                        </div>
+                    </div>
+                    <div class="log-terminal" id="log-container">
+                        <!-- 日志将由 script.js 动态填充 -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- 底部操作区 -->
+            <section class="control-panel glass-panel">
+                <button class="cyber-btn primary-btn" id="btn-start"><i class="fas fa-play"></i> 重置并启动全域引擎</button>
+                <button class="cyber-btn danger-btn" id="btn-stop"><i class="fas fa-ban"></i> 物理隔离/挂起引擎</button>
+                <button class="cyber-btn outline-btn" id="btn-clear"><i class="fas fa-broom"></i> 净化终端日志</button>
+            </section>
+        </div>
+    </div>
+
+    <!-- 简化的登录逻辑 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const loginBtn = document.getElementById('login-btn');
+            const btnText = loginBtn.querySelector('.btn-text');
+            const loader = document.getElementById('login-loader');
+            const loginView = document.getElementById('login-view');
+            const dashboardView = document.getElementById('dashboard-view');
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                btnText.style.display = 'none';
+                loader.style.display = 'block';
+                loginBtn.style.opacity = '0.8';
+
+                setTimeout(() => {
+                    loginView.classList.add('hidden');
+                    dashboardView.classList.remove('hidden');
+                }, 1500);
+            });
+
+            // 实时时钟
+            setInterval(() => {
+                const timeEl = document.getElementById('current-time');
+                if (timeEl) {
+                    timeEl.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+                }
+            }, 1000);
+        });
+    </script>
+
+    <!-- 引入主业务逻辑脚本 -->
+    <script src="script.js"></script>
+</body>
+</html>

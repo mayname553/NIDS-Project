@@ -9,6 +9,16 @@ import pandas as pd
 import psutil
 import logging
 from datetime import datetime
+import os
+import sys
+
+# 导入黄博波开发的特征工程模块
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
+try:
+    from src.modules.features.pipeline import run_feature_engineering_pipeline
+    HAS_ADVANCED_FE = True
+except ImportError:
+    HAS_ADVANCED_FE = False
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,7 +29,13 @@ class AIDetector:
         try:
             # 加载模型
             logger.info(f"加载AI模型: {model_path}")
-            self.model = joblib.load(model_path)
+            if model_path.endswith('.h5') or model_path.endswith('.keras'):
+                import tensorflow as tf
+                self.model = tf.keras.models.load_model(model_path)
+                self.is_deep_learning = True
+            else:
+                self.model = joblib.load(model_path)
+                self.is_deep_learning = False
 
             # 加载预处理器
             logger.info(f"加载预处理器: {preprocessor_path}")
@@ -111,11 +127,17 @@ class AIDetector:
             return None
 
     def preprocess_features(self, features):
-        """预处理特征"""
+        """预处理特征 (标准模式)"""
         try:
             # 转换为DataFrame
             df = pd.DataFrame([features])
-
+            
+            # 如果启用了高级特征工程，执行融合等操作
+            if HAS_ADVANCED_FE:
+                # 暂时只对单样本执行融合（窗口为1）
+                # 注意：实际生产中需要维护一个滑动窗口缓冲区
+                df = run_feature_engineering_pipeline(df)[0]
+                
             # 编码类别特征
             for col in self.categorical_features:
                 if col in df.columns:
@@ -159,15 +181,26 @@ class AIDetector:
                 return None, None
 
             # 预测
-            prediction = self.model.predict(X)[0]
-            probability = self.model.predict_proba(X)[0]
+            if self.is_deep_learning:
+                attack_probability = float(self.model.predict(X, verbose=0)[0][0])
+                prediction = 1 if attack_probability > 0.5 else 0
+                normal_probability = 1.0 - attack_probability
+            else:
+                prediction = self.model.predict(X)[0]
+                if hasattr(self.model, "predict_proba"):
+                    probability = self.model.predict_proba(X)[0]
+                    normal_probability = float(probability[0])
+                    attack_probability = float(probability[1])
+                else:
+                    attack_probability = 0.5
+                    normal_probability = 0.5
 
             # 返回结果
             result = {
                 'is_attack': bool(prediction == 1),
-                'confidence': float(probability[1]),  # 攻击的概率
-                'normal_probability': float(probability[0]),
-                'attack_probability': float(probability[1]),
+                'confidence': attack_probability,
+                'normal_probability': normal_probability,
+                'attack_probability': attack_probability,
                 'timestamp': datetime.now().isoformat()
             }
 

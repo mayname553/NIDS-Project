@@ -37,6 +37,13 @@ NIDS-Project/
 │   ├── 🔍 network_attack_detector.py  # 核心检测引擎
 │   ├── 🤖 ai_detector.py         # AI 模型集成
 │   ├── 📊 data_preprocessor.py   # 数据预处理
+│   ├── 📂 src/                   # 源代码模块 (HuangBobo 任务)
+│   │   ├── 📂 utils/             # 基础工具类
+│   │   │   └── 🐍 feature_engineering/ # 特征工程工具
+│   │   └── 📂 modules/           # 业务逻辑模块
+│   │       └── 🐍 features/      # 特征工程业务逻辑
+│   ├── 📂 config/                # 配置文件
+│   │   └── 📂 features/          # 特征工程配置与数据库
 │   ├── 🎯 train_model.py         # 模型训练脚本
 │   ├── 📋 requirements.txt       # Python 依赖
 │   ├── 📂 model/                 # 训练好的模型文件

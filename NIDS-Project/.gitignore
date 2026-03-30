@@ -80,4 +80,5 @@ yarn-error.log*
 
 # Frontend build
 dist/
-build/
+build/*.pkl
+backend/models/

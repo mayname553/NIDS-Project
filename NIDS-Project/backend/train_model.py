@@ -109,22 +109,25 @@ class ModelTrainer:
         logger.info("模型加载完成！")
 
 if __name__ == '__main__':
-    # 测试模型训练
     from data_preprocessor import DataPreprocessor
 
-    # 准备数据
+    # 1. 准备数据
     preprocessor = DataPreprocessor()
     X_train, y_train, X_test, y_test = preprocessor.prepare_data(
         'dataset/KDDTrain+.txt',
         'dataset/KDDTest+.txt'
     )
 
-    # 训练模型
-    trainer = ModelTrainer()
+    # 2. 训练模型
+    trainer = ModelTrainer(n_estimators=100, max_depth=20)
     trainer.train(X_train, y_train)
 
-    # 评估模型
+    # 3. 评估
     metrics = trainer.evaluate(X_test, y_test)
 
-    # 特征重要性
-    trainer.get_feature_importance(preprocessor.feature_columns)
+    # 4. 保存模型和预处理器
+    import os
+    os.makedirs('models', exist_ok=True)   # 确保 models 目录存在
+    trainer.save_model('models/rf_model.pkl')
+    preprocessor.save_preprocessor('models/preprocessor.pkl')
+    print("✅ RandomForest 模型已保存到 models/rf_model.pkl")

@@ -33,18 +33,23 @@ class NetworkAttackDetector:
     def _load_ai_model(self):
         """加载AI模型"""
         try:
-            model_path = os.path.join(BASE_DIR, 'model', 'nids_model.pkl')
+            # 优先加载混合模型 (Deep Learning)，回退到基线模型
+            hybrid_model_path = os.path.join(BASE_DIR, 'model', 'hybrid_nids_model.keras')
+            baseline_model_path = os.path.join(BASE_DIR, 'model', 'nids_model.pkl')
             preprocessor_path = os.path.join(BASE_DIR, 'model', 'preprocessor.pkl')
+
+            model_path = hybrid_model_path if os.path.exists(hybrid_model_path) else baseline_model_path
 
             # 检查模型文件是否存在
             if os.path.exists(model_path) and os.path.exists(preprocessor_path):
                 from ai_detector import AIDetector
                 self.ai_detector = AIDetector(model_path, preprocessor_path)
                 self.use_ai = True
-                logger.info("✅ AI模型已加载，启用智能检测模式")
+                model_name = "混合 (CNN-LSTM)" if model_path == hybrid_model_path else "基线 (Random Forest)"
+                logger.info(f"✅ AI模型已加载: {model_name}，启用智能检测模式")
             else:
                 logger.warning("⚠️ AI模型文件不存在，使用规则检测模式")
-                logger.info(f"   请运行 'python train_and_save.py' 训练模型")
+                logger.info(f"   请运行 'python train_hybrid.py' 或 'python train_and_save.py' 训练模型")
         except Exception as e:
             logger.warning(f"⚠️ AI模型加载失败: {e}")
             logger.info("   使用规则检测模式")

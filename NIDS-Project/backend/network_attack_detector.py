@@ -13,6 +13,8 @@ import os
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class NetworkAttackDetector:
     def __init__(self):
         self.suspicious_activities = []
@@ -31,8 +33,8 @@ class NetworkAttackDetector:
     def _load_ai_model(self):
         """加载AI模型"""
         try:
-            model_path = 'model/nids_model.pkl'
-            preprocessor_path = 'model/preprocessor.pkl'
+            model_path = os.path.join(BASE_DIR, 'model', 'nids_model.pkl')
+            preprocessor_path = os.path.join(BASE_DIR, 'model', 'preprocessor.pkl')
 
             # 检查模型文件是否存在
             if os.path.exists(model_path) and os.path.exists(preprocessor_path):

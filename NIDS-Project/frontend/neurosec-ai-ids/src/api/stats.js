@@ -129,14 +129,3 @@ class StatsService {
 }
 
 export default new StatsService();
-// src/api/stats.js
-import http from './config.js';
-
-export const statsApi = {
-    getDashboardStats() {
-        return http.get('/stats/dashboard');
-    },
-    getThreatStats() {
-        return http.get('/stats/threats');
-    },
-};

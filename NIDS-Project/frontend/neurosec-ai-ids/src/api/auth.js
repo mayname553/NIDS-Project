@@ -1,4 +1,4 @@
-import http from '../utils/request.js';
+import http from '../untils/request.js';
 import { ENDPOINTS } from './config.js';
 
 class AuthService {
@@ -12,7 +12,7 @@ class AuthService {
 
             // 保存Token
             http.setToken(data.access_token, data.refresh_token);
-            
+
             return {
                 success: true,
                 user: data.user
@@ -54,16 +54,7 @@ class AuthService {
 
     // 检查登录状态
     isAuthenticated() {
-        const token = localStorage.getItem('neurosec_token');
-        if (!token) return false;
-
-        try {
-            // 解析JWT Token，检查是否过期
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            return payload.exp * 1000 > Date.now();
-        } catch (error) {
-            return false;
-        }
+        return !!localStorage.getItem('neurosec_token');
     }
 
     // 获取当前用户
@@ -74,17 +65,3 @@ class AuthService {
 }
 
 export default new AuthService();
-// src/api/auth.js
-import http from './config.js';
-
-export const authApi = {
-    login(data) {
-        return http.post('/auth/login', data);
-    },
-    logout() {
-        return http.post('/auth/logout');
-    },
-    refresh(data) {
-        return http.post('/auth/refresh', data);
-    },
-};

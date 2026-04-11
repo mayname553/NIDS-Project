@@ -116,20 +116,5 @@ class MonitorService {
         }
     }
 }
-}
 
 export default new MonitorService();
-// src/api/monitor.js
-import http from './config.js';
-
-export const monitorApi = {
-    getTrafficData(params) {
-        return http.get('/monitor/traffic', params);
-    },
-    getAlerts(params) {
-        return http.get('/monitor/alerts', params);
-    },
-    getSystemStatus() {
-        return http.get('/monitor/status');
-    },
-};

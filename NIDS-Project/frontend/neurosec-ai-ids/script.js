@@ -336,7 +336,7 @@ function updateMetricCard(id, value) {
 
 // 更新最后扫描时间
 function updateLastScanTime(timestamp) {
-    const element = document.getElementById('last-scan-time');
+    const element = document.getElementById('last-block-time');
     if (element) {
         element.textContent = formatTime(timestamp);
     }

@@ -17,6 +17,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 脚本所在目录（确保路径正确，无论从哪里启动）
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
 
@@ -324,7 +327,7 @@ def get_model_status():
 def get_model_metrics():
     """获取模型性能指标"""
     try:
-        metrics_path = 'model/model_metrics.json'
+        metrics_path = os.path.join(BASE_DIR, 'model', 'model_metrics.json')
         if os.path.exists(metrics_path):
             with open(metrics_path, 'r', encoding='utf-8') as f:
                 metrics = json.load(f)
@@ -349,17 +352,18 @@ def get_model_metrics():
 @app.route('/api/model/train', methods=['POST'])
 def train_model():
     """触发模型训练（后台任务）"""
+    training_flag = os.path.join(BASE_DIR, 'model', '.training')
     try:
         # 检查是否已在训练
-        if os.path.exists('model/.training'):
+        if os.path.exists(training_flag):
             return jsonify({
                 'success': False,
                 'message': '模型正在训练中，请稍后再试'
             }), 400
 
         # 创建训练标记文件
-        os.makedirs('model', exist_ok=True)
-        with open('model/.training', 'w') as f:
+        os.makedirs(os.path.join(BASE_DIR, 'model'), exist_ok=True)
+        with open(training_flag, 'w') as f:
             f.write(datetime.now().isoformat())
 
         # 在后台线程中训练
@@ -368,7 +372,7 @@ def train_model():
                 import subprocess
                 result = subprocess.run(
                     ['python', 'train_and_save.py'],
-                    cwd='backend',
+                    cwd=BASE_DIR,
                     capture_output=True,
                     text=True
                 )
@@ -377,8 +381,8 @@ def train_model():
                 logger.error(f"模型训练失败: {e}")
             finally:
                 # 删除训练标记
-                if os.path.exists('model/.training'):
-                    os.remove('model/.training')
+                if os.path.exists(training_flag):
+                    os.remove(training_flag)
 
         training_thread = threading.Thread(target=train_in_background, daemon=True)
         training_thread.start()

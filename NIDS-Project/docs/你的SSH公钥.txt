@@ -1,0 +1,17 @@
+# 你的SSH公钥（请完整复制）
+
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDJ7e/xzLHnjPyCL+8yVeAqgsbMX5HVGQ9wgsbyeX0EnaUExP8q7kwx4eoV9Ygq1akvqcoZz/TpyT5lnmp7HzNzQhJD1u2ZiVmujUEyl50Ot2nftPWmsyMUR+ijBwKpaG1dLuji+D+8aVFmm2EagYm6XatpmSGvOFyJbJgdfgw+tbeBIyHsAp72Dbz86RCRfn2Om3wG9YJtSPWr2HAzT02EHASwzrAmNqKtCEdSNPFXvjZktpXTo3sqmCy6nQsxbvnkAdSggKxMdb3izXmaImKBcan65JppIkj8wriCutRF7jDsGULrz7ikUuLcGrW8hYChlnfBysZGpT7wZOnUAYccFKXujY69EdG7Mt3yKmc2m7y8Iph2pNE81iFQHi1KRc/wUTviDEaRsP/GqcoFz0RTkI6+5cRaVedglYxjcqwthgNAMHd6rfmXyYw85xJa+KdyudzJWdekpOPqHxdafkEy+0rZkFtEPtswAMPGIg986zzgKYV1JtArDM2w2dGkaR0= 2370593750@qq.com
+
+---
+
+## 添加到GitHub的步骤：
+
+1. 访问：https://github.com/settings/keys
+2. 点击右上角绿色按钮 "New SSH key"
+3. 填写：
+   - Title: 我的电脑（随便起名）
+   - Key: 复制上面的完整公钥（从ssh-rsa开头到@qq.com结尾）
+4. 点击 "Add SSH key"
+5. 输入GitHub密码确认
+
+完成后告诉我，我会帮你执行下一步。

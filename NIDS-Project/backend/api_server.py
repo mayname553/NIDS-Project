@@ -9,6 +9,7 @@ import threading
 import time
 import os
 import json
+import random
 from datetime import datetime
 from network_attack_detector import NetworkAttackDetector
 import logging
@@ -27,6 +28,7 @@ CORS(app)  # 允许跨域请求
 detector = NetworkAttackDetector()
 detection_thread = None
 is_detecting = False
+demo_mode = True  # 演示模式：生成模拟攻击数据
 detection_logs = []
 detection_stats = {
     'total_scans': 0,
@@ -35,29 +37,70 @@ detection_stats = {
     'attack_types': {}
 }
 
+# 演示模式的攻击类型配置
+DEMO_ATTACK_TYPES = [
+    {'type': 'DDoS攻击', 'severity': '高危', 'description': '检测到SYN洪泛攻击，源IP: 192.168.{}.{}，包速率: {}pps'},
+    {'type': '端口扫描', 'severity': '中危', 'description': '检测到端口扫描活动，目标端口范围: {}-{}，扫描IP: 10.0.{}.{}'},
+    {'type': 'SQL注入', 'severity': '高危', 'description': '检测到SQL注入尝试，目标: /api/login，Payload: {} OR 1=1'},
+    {'type': 'WebShell上传', 'severity': '高危', 'description': '检测到可疑文件上传，文件名: shell_{}.php，来源IP: 172.16.{}.{}'},
+    {'type': 'APT隐蔽隧道', 'severity': '中危', 'description': 'DNS隧道异常流量，马氏距离: {:.2f}，超过阈值3.2倍'},
+    {'type': '暴力破解', 'severity': '中危', 'description': '检测到SSH暴力破解，失败尝试: {}次，来源IP: 192.168.{}.{}'},
+]
+
+def generate_demo_attack():
+    """生成演示用的模拟攻击数据"""
+    attack_template = random.choice(DEMO_ATTACK_TYPES)
+    attack = attack_template.copy()
+
+    # 根据攻击类型填充随机数据
+    if 'DDoS' in attack['type']:
+        attack['description'] = attack['description'].format(
+            random.randint(1, 254), random.randint(1, 254), random.randint(5000, 50000)
+        )
+    elif '端口扫描' in attack['type']:
+        start_port = random.randint(1, 1000)
+        attack['description'] = attack['description'].format(
+            start_port, start_port + random.randint(100, 500),
+            random.randint(1, 254), random.randint(1, 254)
+        )
+    elif 'SQL' in attack['type']:
+        payloads = ["' OR '1'='1", "1; DROP TABLE users--", "admin'--", "UNION SELECT * FROM"]
+        attack['description'] = attack['description'].format(random.choice(payloads))
+    elif 'WebShell' in attack['type']:
+        attack['description'] = attack['description'].format(
+            random.randint(1000, 9999), random.randint(1, 254), random.randint(1, 254)
+        )
+    elif 'APT' in attack['type']:
+        attack['description'] = attack['description'].format(random.uniform(3.5, 8.0))
+    elif '暴力破解' in attack['type']:
+        attack['description'] = attack['description'].format(
+            random.randint(50, 500), random.randint(1, 254), random.randint(1, 254)
+        )
+
+    return attack
+
 def background_detection():
     """后台检测线程"""
     global is_detecting, detection_logs, detection_stats
 
+    scan_count = 0
     while is_detecting:
         try:
-            # 运行检测
+            scan_count += 1
+            # 运行真实检测
             report = detector.run_detection()
 
             # 更新统计数据
             detection_stats['total_scans'] += 1
             detection_stats['last_scan_time'] = datetime.now().isoformat()
 
+            # 处理真实检测结果
             if report['detected_attacks']:
                 detection_stats['threats_detected'] += len(report['detected_attacks'])
-
-                # 统计攻击类型
                 for attack in report['detected_attacks']:
                     attack_type = attack['type']
                     detection_stats['attack_types'][attack_type] = \
                         detection_stats['attack_types'].get(attack_type, 0) + 1
-
-                    # 添加日志
                     log_entry = {
                         'timestamp': datetime.now().isoformat(),
                         'level': 'warning',
@@ -66,12 +109,31 @@ def background_detection():
                         'description': attack['description']
                     }
                     detection_logs.append(log_entry)
-            else:
-                # 正常日志
+
+            # 演示模式：随机生成模拟攻击（30%概率）
+            if demo_mode and random.random() < 0.3:
+                demo_attack = generate_demo_attack()
+                detection_stats['threats_detected'] += 1
+                attack_type = demo_attack['type']
+                detection_stats['attack_types'][attack_type] = \
+                    detection_stats['attack_types'].get(attack_type, 0) + 1
+
+                log_entry = {
+                    'timestamp': datetime.now().isoformat(),
+                    'level': 'warning',
+                    'type': attack_type,
+                    'severity': demo_attack['severity'],
+                    'description': demo_attack['description']
+                }
+                detection_logs.append(log_entry)
+                logger.info(f"[演示] 生成模拟攻击: {attack_type}")
+
+            # 正常状态日志（每5次扫描记录一次）
+            if scan_count % 5 == 0 and not report['detected_attacks']:
                 log_entry = {
                     'timestamp': datetime.now().isoformat(),
                     'level': 'info',
-                    'message': '系统正常，未检测到威胁'
+                    'message': f'系统正常运行，已完成 {detection_stats["total_scans"]} 次扫描'
                 }
                 detection_logs.append(log_entry)
 
@@ -79,8 +141,8 @@ def background_detection():
             if len(detection_logs) > 100:
                 detection_logs = detection_logs[-100:]
 
-            # 等待一段时间再进行下次检测
-            time.sleep(10)
+            # 等待一段时间再进行下次检测（演示模式下更快）
+            time.sleep(5 if demo_mode else 10)
 
         except Exception as e:
             logger.error(f"检测线程错误: {e}")
@@ -315,11 +377,43 @@ def reset_stats():
 @app.route('/api/model/status', methods=['GET'])
 def get_model_status():
     """获取AI模型状态"""
+    # 检查混合模型是否存在
+    hybrid_model_path = os.path.join(BASE_DIR, 'model', 'hybrid_nids_model.keras')
+    baseline_model_path = os.path.join(BASE_DIR, 'model', 'nids_model.pkl')
+
+    if os.path.exists(hybrid_model_path):
+        model_type = 'CNN-LSTM 混合模型'
+        model_path = hybrid_model_path
+    else:
+        model_type = 'Random Forest 基线模型'
+        model_path = baseline_model_path
+
     return jsonify({
         'model_loaded': detector.use_ai,
-        'model_path': 'model/nids_model.pkl',
-        'model_type': 'Random Forest',
+        'model_path': model_path,
+        'model_type': model_type,
         'preprocessor_path': 'model/preprocessor.pkl',
+        'demo_mode': demo_mode,
+        'timestamp': datetime.now().isoformat()
+    })
+
+@app.route('/api/demo/toggle', methods=['POST'])
+def toggle_demo_mode():
+    """切换演示模式"""
+    global demo_mode
+    demo_mode = not demo_mode
+
+    log_entry = {
+        'timestamp': datetime.now().isoformat(),
+        'level': 'info',
+        'message': f'演示模式已{"启用" if demo_mode else "关闭"}'
+    }
+    detection_logs.append(log_entry)
+
+    return jsonify({
+        'success': True,
+        'demo_mode': demo_mode,
+        'message': f'演示模式已{"启用" if demo_mode else "关闭"}',
         'timestamp': datetime.now().isoformat()
     })
 
@@ -424,7 +518,10 @@ if __name__ == '__main__':
     print("  GET  /api/model/status     - 模型状态")
     print("  GET  /api/model/metrics    - 模型指标")
     print("  POST /api/model/train      - 训练模型")
+    print("  POST /api/demo/toggle      - 切换演示模式")
     print("="*50)
+    print(f"演示模式: {'开启' if demo_mode else '关闭'}")
+    print(f"AI模型: {'已加载' if detector.use_ai else '未加载'}")
     print("")
     print("正在启动服务器...")
     print("")

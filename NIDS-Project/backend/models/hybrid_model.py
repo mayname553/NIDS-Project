@@ -1,38 +1,50 @@
+"""
+CNN-LSTM 混合模型定义
+用于网络入侵检测
+"""
+
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv1D, MaxPooling1D, LSTM, Dense, Dropout, Flatten, Reshape
-import numpy as np
+from tensorflow.keras import layers, models
 
 def create_hybrid_model(input_shape):
     """
     创建 CNN-LSTM 混合模型
-    input_shape: (features,)
+    
+    Args:
+        input_shape: 输入特征维度 (feature_dim,)
+    
+    Returns:
+        编译好的 Keras 模型
     """
-    model = Sequential([
-        # 输入层：将 1D 特征 Reshape 为 3D (batch, steps, features) 供 Conv1D 使用
-        Reshape((input_shape[0], 1), input_shape=input_shape),
+    model = models.Sequential([
+        layers.Input(shape=input_shape),
         
-        # CNN 层：提取空间特征
-        Conv1D(filters=64, kernel_size=3, activation='relu', padding='same'),
-        MaxPooling1D(pool_size=2),
-        Conv1D(filters=128, kernel_size=3, activation='relu', padding='same'),
-        MaxPooling1D(pool_size=2),
+        layers.Reshape((input_shape[0], 1)),
         
-        # LSTM 层：提取时序特征
-        LSTM(64, return_sequences=True),
-        LSTM(64),
+        layers.Conv1D(64, 3, activation='relu', padding='same'),
+        layers.BatchNormalization(),
+        layers.MaxPooling1D(2),
         
-        # 全连接层
-        Dense(64, activation='relu'),
-        Dropout(0.5),
-        Dense(1, activation='sigmoid') # 二分类：正常 vs 攻击
+        layers.Conv1D(128, 3, activation='relu', padding='same'),
+        layers.BatchNormalization(),
+        layers.MaxPooling1D(2),
+        
+        layers.LSTM(64, return_sequences=True),
+        layers.Dropout(0.3),
+        
+        layers.LSTM(32),
+        layers.Dropout(0.3),
+        
+        layers.Dense(64, activation='relu'),
+        layers.Dropout(0.3),
+        
+        layers.Dense(1, activation='sigmoid')
     ])
     
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    model.compile(
+        optimizer='adam',
+        loss='binary_crossentropy',
+        metrics=['accuracy']
+    )
+    
     return model
-
-if __name__ == "__main__":
-    # 测试模型构建
-    input_dim = 41 # NSL-KDD 特征数
-    model = create_hybrid_model((input_dim,))
-    model.summary()

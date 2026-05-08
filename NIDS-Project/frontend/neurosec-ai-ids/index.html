@@ -115,7 +115,15 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         /* ================= 控制台视图 ================= */
-        .dashboard-layout { padding: 20px; display: flex; flex-direction: column; gap: 20px; height: 100vh;}
+        /* 修改这里：将 height: 100vh; 改为 min-height: 100vh; 并添加 overflow-y: auto */
+        .dashboard-layout { 
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 20px; 
+            min-height: 100vh;  /* 改为 min-height */
+            overflow-y: auto;    /* 添加垂直滚动 */
+        }
 
         .top-navbar { display: flex; justify-content: space-between; align-items: center; padding: 15px 25px; }
         .logo-container { display: flex; align-items: center; gap: 15px; }
@@ -133,12 +141,23 @@
         .metric-data .value { font-size: 1.8rem; font-weight: 700; margin-bottom: 2px; }
         .metric-data .sub-value { font-size: 0.75rem; color: #829AB1; }
 
-        .main-content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; flex: 1; min-height: 0; }
+        /* 修改这里：让图表区域自动调整高度，避免被压缩 */
+        .main-content-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            flex: 1; 
+            min-height: 400px;  /* 设置最小高度，防止被压缩 */
+        }
         .panel-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.2); }
         .panel-header h3 { font-size: 1rem; font-weight: 500; letter-spacing: 1px;}
 
         /* 威胁图谱区 */
-        .attack-stats { display: flex; flex-direction: column; }
+        .attack-stats { 
+            display: flex; 
+            flex-direction: column; 
+            height: 100%;  /* 占满父容器高度 */
+        }
         .progress-list { padding: 20px; display: grid; gap: 15px; }
         .progress-item .progress-info { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; }
         .progress-bar-bg { background: rgba(255,255,255,0.05); height: 6px; border-radius: 3px; overflow: hidden; position: relative; }
@@ -150,11 +169,28 @@
         .accent-fill { background: var(--accent-cyan); box-shadow: 0 0 10px var(--accent-cyan); }
         .normal-fill { background: var(--text-muted); }
 
-        #topology-chart { flex: 1; width: 100%; min-height: 250px; }
+        #topology-chart { 
+            flex: 1; 
+            width: 100%; 
+            min-height: 250px; 
+            height: 300px;  /* 占满剩余空间 */
+        }
 
         /* 终端日志区 */
-        .live-logs { display: flex; flex-direction: column; }
-        .log-terminal { flex: 1; padding: 15px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.85rem; scroll-behavior: smooth; }
+        .live-logs { 
+            display: flex; 
+            flex-direction: column; 
+            height: 500px;
+        }
+        .log-terminal { 
+            flex: 1; 
+            padding: 15px; 
+            overflow-y: auto; 
+            font-family: 'Consolas', 'Courier New', monospace; 
+            font-size: 0.85rem; 
+            scroll-behavior: smooth; 
+            height: 100%;  /* 占满剩余空间 */
+        }
         .log-terminal::-webkit-scrollbar { width: 6px; }
         .log-terminal::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
         .log-terminal::-webkit-scrollbar-thumb { background: rgba(0,229,255,0.3); border-radius: 3px; }
@@ -170,12 +206,108 @@
         .log-entry.error .log-tag { color: var(--danger-red); font-weight: bold; }
 
         /* 底部控制台 */
-        .control-panel { display: flex; gap: 15px; justify-content: center; padding: 15px; }
+        .control-panel { 
+            display: flex; 
+            gap: 15px; 
+            justify-content: center; 
+            padding: 15px; 
+            margin-top: auto;  /* 自动顶部边距，使控件始终在底部 */
+        }
         .control-panel .cyber-btn { width: auto; min-width: 160px; font-size: 0.85rem; padding: 10px 20px;}
         .danger-btn { background: rgba(255,51,102,0.1); border: 1px solid var(--danger-red); color: var(--danger-red); }
         .danger-btn:hover { background: var(--danger-red); color: #fff; box-shadow: 0 0 15px var(--danger-red); }
         .outline-btn { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); }
         .outline-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+        /* 上传模块样式 */
+        .upload-widget {
+            background: #121212;
+            border: 1px solid #00ffff;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+        }
+        .upload-widget label {
+            color: #00ffff; 
+            font-weight: bold; 
+            display: block; 
+            margin-bottom: 8px;
+        }
+        .upload-widget input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 14px;
+        }
+        .upload-btn {
+            padding: 10px 20px;
+            background: #00ffff;
+            color: black;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .upload-btn:hover { background: #00cccc; }
+        .upload-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .upload-status {
+            font-size: 12px; 
+            color: #aaa; 
+            margin-top: 4px;
+        }
+
+        /* 上传历史区域样式 */
+        .upload-history {
+            margin-top: 8px;
+        }
+        .history-list {
+            padding: 15px;
+            max-height: 200px;  /* 限制列表最大高度 */
+            overflow-y: auto;   /* 列表内容过多时内部滚动 */
+        }
+        .history-empty {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        .history-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            transition: background 0.2s;
+        }
+        .history-item:hover {
+            background: rgba(0, 229, 255, 0.05);
+        }
+        .status-badge {
+            background: rgba(0, 229, 255, 0.2);
+            color: #00E5FF;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+        }
+        .status-badge.error {
+            background: rgba(255, 51, 102, 0.2);
+            color: #FF3366;
+        }
+
+        /* 进度条动画 */
+        .upload-progress {
+            margin-top: 8px;
+        }
+        .progress-bar {
+            height: 4px;
+            border-radius: 2px;
+            transition: width 0.3s, background 0.3s;
+        }
 
         @media (max-width: 1024px) {
             .metrics-row, .main-content-grid { grid-template-columns: 1fr; }
@@ -195,7 +327,6 @@
     </style>
 </head>
 <body>
-
     <!-- ================= 视图 1：军工级认证网关 ================= -->
     <div id="login-view">
         <div class="login-container glass-panel">
@@ -284,6 +415,39 @@
                         <p class="value orbitron-text" id="last-block-time">--:--:--</p>
                         <p class="sub-value">系统响应延时: <span class="text-accent">--</span></p>
                     </div>
+                </div>
+            </section>
+
+            <!-- 上传文件区域 -->
+            <div class="upload-widget">
+                <div style="flex: 1;">
+                    <label>上传流量文件 (PCAP)</label>
+                    <input type="file" id="fileUpload" accept=".pcap" style="
+                        width: 100%;
+                        padding: 8px;
+                        background: #1a1a1a;
+                        border: 1px solid #333;
+                        border-radius: 4px;
+                        color: #fff;
+                        font-size: 14px;
+                    ">
+                </div>
+                <button onclick="handleUpload()" class="upload-btn" id="upload-button">
+                    开始上传
+                </button>
+                <div id="uploadStatus" class="upload-status"></div>
+            </div>
+
+            <!-- 上传历史区域 -->
+            <section class="upload-history glass-panel" id="upload-history-section" style="display: none;">
+                <div class="panel-header">
+                    <h3><i class="fas fa-file-archive"></i> 最近上传文件与分析结果</h3>
+                    <button class="cyber-btn outline-btn" onclick="clearUploadHistory()" style="font-size: 0.8rem; padding: 5px 10px;">
+                        <i class="fas fa-broom"></i> 清空列表
+                    </button>
+                </div>
+                <div class="history-list" id="upload-history-list">
+                    <div class="history-empty">暂无上传记录</div>
                 </div>
             </section>
 

@@ -2,11 +2,13 @@
 // 基于智能模型与动态优化的轻量级网络入侵检测系统
 
 // API 配置
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'http://localhost:5000';
 
 // 全局变量
 let charts = {};
 let updateInterval = null;
+let uploadHistory = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
+let is_detecting_local = false;
 
 // ==================== 初始化 ====================
 
@@ -28,6 +30,15 @@ async function init() {
         // 绑定按钮事件
         setupEventListeners();
 
+        // 初始化上传历史
+        renderUploadHistory();
+        if (uploadHistory.length > 0) {
+            const historySection = document.getElementById('upload-history-section');
+            if (historySection) {
+                historySection.style.display = 'block';
+            }
+        }
+
         console.log('系统初始化完成');
 
     } catch (error) {
@@ -38,19 +49,19 @@ async function init() {
 
 // 设置事件监听
 function setupEventListeners() {
-    // 启动检测按钮 (使用正确的 ID)
+    // 启动检测按钮
     const startBtn = document.getElementById('btn-start');
     if (startBtn) {
         startBtn.addEventListener('click', startDetection);
     }
 
-    // 停止检测按钮 (使用正确的 ID)
+    // 停止检测按钮
     const stopBtn = document.getElementById('btn-stop');
     if (stopBtn) {
         stopBtn.addEventListener('click', stopDetection);
     }
 
-    // 清空日志按钮 (使用正确的 ID)
+    // 清空日志按钮
     const clearBtn = document.getElementById('btn-clear');
     if (clearBtn) {
         clearBtn.addEventListener('click', clearLogs);
@@ -61,21 +72,21 @@ function setupEventListeners() {
 
 // 获取统计数据
 async function fetchStats() {
-    const response = await fetch(`${API_BASE}/stats`);
+    const response = await fetch(`${API_BASE}/api/stats`);
     const data = await response.json();
     return data;
 }
 
 // 获取日志
 async function fetchLogs(limit = 50) {
-    const response = await fetch(`${API_BASE}/logs?limit=${limit}`);
+    const response = await fetch(`${API_BASE}/api/logs?limit=${limit}`);
     const data = await response.json();
     return data;
 }
 
 // 获取检测状态
 async function fetchDetectionStatus() {
-    const response = await fetch(`${API_BASE}/detection/status`);
+    const response = await fetch(`${API_BASE}/api/detection/status`);
     const data = await response.json();
     return data;
 }
@@ -83,7 +94,7 @@ async function fetchDetectionStatus() {
 // 获取模型指标
 async function fetchModelMetrics() {
     try {
-        const response = await fetch(`${API_BASE}/model/metrics`);
+        const response = await fetch(`${API_BASE}/api/model/metrics`);
         const data = await response.json();
         return data.success ? data.metrics : null;
     } catch (error) {
@@ -95,7 +106,7 @@ async function fetchModelMetrics() {
 // 启动检测
 async function startDetection() {
     try {
-        const response = await fetch(`${API_BASE}/detection/start`, {
+        const response = await fetch(`${API_BASE}/api/detection/start`, {
             method: 'POST'
         });
         const data = await response.json();
@@ -115,7 +126,7 @@ async function startDetection() {
 // 停止检测
 async function stopDetection() {
     try {
-        const response = await fetch(`${API_BASE}/detection/stop`, {
+        const response = await fetch(`${API_BASE}/api/detection/stop`, {
             method: 'POST'
         });
         const data = await response.json();
@@ -153,6 +164,273 @@ async function clearLogs() {
     } catch (error) {
         console.error('清空日志失败:', error);
         showNotification('清空日志失败', 'error');
+    }
+}
+
+// ==================== 文件上传功能 ====================
+
+async function handleUpload() {
+    console.log('开始处理文件上传...');
+    
+    const fileInput = document.getElementById('fileUpload');
+    const uploadBtn = document.getElementById('upload-button');
+    const originalBtnText = uploadBtn ? uploadBtn.innerHTML : '';
+    
+    // 1. 检查是否已选择文件
+    if (!fileInput.files || fileInput.files.length === 0) {
+        updateUploadStatus('请先选择一个文件！', 'error');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    
+    // 2. 文件大小验证（100MB限制）
+    if (file.size > 100 * 1024 * 1024) { // 100MB
+        updateUploadStatus('文件大小不能超过100MB！', 'error');
+        return;
+    }
+    
+    // 3. 文件类型验证 - 根据后端只允许 .pcap
+    const validTypes = ['.pcap'];
+    const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+    if (!validTypes.includes(fileExt)) {
+        updateUploadStatus('仅支持 .pcap 格式文件！', 'error');
+        return;
+    }
+    
+    // 4. 禁用按钮并显示Loading
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 上传中...';
+        uploadBtn.style.opacity = '0.7';
+    }
+    
+    // 5. 显示进度条
+    const statusDiv = document.getElementById('uploadStatus');
+    if (statusDiv) {
+        statusDiv.innerHTML = `
+            <div class="upload-progress" style="margin-top: 8px;">
+                <div class="progress-bar" style="width: 0%; background: #00E5FF; height: 4px; border-radius: 2px; transition: width 0.3s;"></div>
+            </div>
+        `;
+    }
+    
+    // 6. 模拟进度动画
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        if (progress < 90) {
+            progress += 10;
+            const progressBar = document.querySelector('.progress-bar');
+            if (progressBar) {
+                progressBar.style.width = progress + '%';
+            }
+        }
+    }, 200);
+    
+    try {
+        // 7. 创建表单数据
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // 8. 调用后端API
+        const response = await fetch(`${API_BASE}/api/upload`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        console.log('上传响应状态:', response.status);
+        
+        // 9. 处理响应
+        if (response.ok) {
+            const result = await response.json();
+            console.log('上传成功结果:', result);
+            
+            // 完成进度条
+            clearInterval(progressInterval);
+            const progressBar = document.querySelector('.progress-bar');
+            if (progressBar) {
+                progressBar.style.width = '100%';
+                progressBar.style.background = '#00FF88';
+            }
+            
+            updateUploadStatus(`上传成功！${result.message || '文件已接收'}`, 'success');
+            
+            // 10. 添加到历史记录
+            updateUploadHistory({
+                filename: result.filename || file.name,
+                size: (file.size / 1024).toFixed(1) + ' KB',
+                status: '已上传'
+            });
+            
+            // 11. 高亮显示历史区域
+            const historySection = document.getElementById('upload-history-section');
+            if (historySection) {
+                historySection.style.display = 'block';
+                historySection.style.animation = 'pulse-glow 2s';
+                setTimeout(() => {
+                    historySection.style.animation = '';
+                }, 2000);
+            }
+            
+            // 12. 记录上传日志
+            addLogEntry({
+                timestamp: new Date().toISOString(),
+                level: 'info',
+                message: `PCAP文件 ${result.filename || file.name} 上传成功，文件已保存到后端`
+            });
+            
+        } else {
+            const error = await response.text();
+            console.error('上传失败:', response.status, error);
+            
+            // 进度条变红色
+            const progressBar = document.querySelector('.progress-bar');
+            if (progressBar) {
+                progressBar.style.background = '#FF3366';
+            }
+            
+            updateUploadStatus(`上传失败: ${error}`, 'error');
+            
+            // 添加到历史记录（标记为错误）
+            updateUploadHistory({
+                filename: file.name,
+                size: (file.size / 1024).toFixed(1) + ' KB',
+                status: '错误'
+            });
+        }
+    } catch (error) {
+        console.error('上传网络错误:', error);
+        
+        // 进度条变红色
+        const progressBar = document.querySelector('.progress-bar');
+        if (progressBar) {
+            progressBar.style.background = '#FF3366';
+        }
+        
+        updateUploadStatus(`网络错误: ${error.message}`, 'error');
+        
+        // 添加到历史记录（标记为错误）
+        updateUploadHistory({
+            filename: file.name,
+            size: (file.size / 1024).toFixed(1) + ' KB',
+            status: '错误'
+        });
+    } finally {
+        // 恢复按钮状态
+        if (uploadBtn) {
+            setTimeout(() => {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = originalBtnText;
+                uploadBtn.style.opacity = '1';
+            }, 1000);
+        }
+        
+        // 清除进度条
+        clearInterval(progressInterval);
+        
+        // 5秒后清除进度条显示
+        setTimeout(() => {
+            const statusDiv = document.getElementById('uploadStatus');
+            if (statusDiv) {
+                statusDiv.innerHTML = '';
+            }
+        }, 5000);
+    }
+}
+
+// 更新上传状态显示
+function updateUploadStatus(message, type = 'info') {
+    const statusDiv = document.getElementById('uploadStatus');
+    if (!statusDiv) return;
+    
+    let color = '#aaa';
+    switch(type) {
+        case 'success': color = '#00ff88'; break;
+        case 'error': color = '#ff3366'; break;
+        case 'info': color = '#00e5ff'; break;
+    }
+    
+    statusDiv.innerHTML = `<span style="color: ${color}">${message}</span>`;
+    
+    // 自动清除成功消息
+    if (type === 'success') {
+        setTimeout(() => {
+            if (statusDiv.innerHTML.includes(message)) {
+                statusDiv.innerHTML = '';
+            }
+        }, 5000);
+    }
+}
+
+// ==================== 上传历史管理 ====================
+
+// 更新上传历史列表
+function updateUploadHistory(fileInfo) {
+    if (fileInfo) {
+        // 添加到历史记录
+        uploadHistory.unshift({
+            name: fileInfo.filename,
+            time: new Date().toISOString(),
+            size: fileInfo.size || 'N/A',
+            status: fileInfo.status || '已上传'
+        });
+        // 只保留最近10条
+        if (uploadHistory.length > 10) {
+            uploadHistory = uploadHistory.slice(0, 10);
+        }
+        // 保存到本地存储
+        localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
+    }
+    
+    // 更新UI
+    renderUploadHistory();
+}
+
+// 渲染历史列表
+function renderUploadHistory() {
+    const listEl = document.getElementById('upload-history-list');
+    if (!listEl) return;
+    
+    if (uploadHistory.length === 0) {
+        listEl.innerHTML = '<div class="history-empty">暂无上传记录</div>';
+        return;
+    }
+    
+    listEl.innerHTML = uploadHistory.map((item, index) => `
+        <div class="history-item" style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <i class="fas fa-file" style="color: #00E5FF; margin-right: 8px;"></i>
+                    <span style="font-family: 'Consolas', monospace; font-size: 0.9rem;">${item.name}</span>
+                </div>
+                <div style="font-size: 0.8rem; color: #64748B;">
+                    ${new Date(item.time).toLocaleString('zh-CN')}
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-top: 4px; color: #829AB1;">
+                <span>大小: ${item.size}</span>
+                <span class="status-badge ${item.status === '错误' ? 'error' : ''}" style="background: ${item.status === '错误' ? 'rgba(255, 51, 102, 0.2)' : 'rgba(0, 229, 255, 0.2)'}; 
+                      color: ${item.status === '错误' ? '#FF3366' : '#00E5FF'}; 
+                      padding: 2px 8px; border-radius: 10px;">
+                    ${item.status}
+                </span>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 清空历史
+function clearUploadHistory() {
+    if (confirm('确定要清空上传历史记录吗？')) {
+        uploadHistory = [];
+        localStorage.removeItem('uploadHistory');
+        renderUploadHistory();
+        showNotification('上传历史已清空', 'success');
+        
+        const historySection = document.getElementById('upload-history-section');
+        if (historySection) {
+            historySection.style.display = 'none';
+        }
     }
 }
 
@@ -380,7 +658,7 @@ async function updateModelInfo() {
         }
 
         // 获取模型状态
-        const response = await fetch(`${API_BASE}/model/status`);
+        const response = await fetch(`${API_BASE}/api/model/status`);
         const data = await response.json();
         if (data.model_loaded) {
             const engineStatus = document.getElementById('engine-status');
@@ -393,9 +671,6 @@ async function updateModelInfo() {
         console.error('获取模型信息失败:', error);
     }
 }
-
-// 本地检测状态跟踪
-let is_detecting_local = false;
 
 // 添加日志条目
 function addLogEntry(log) {
@@ -633,6 +908,19 @@ function initCharts() {
                 }
             }]
         });
+
+        // 1. 立即尝试一次 resize（解决大部分情况）
+        if (charts.topology) charts.topology.resize();
+
+        // 2. 使用 requestAnimationFrame 在下一次屏幕刷新时再 resize 一次（解决顽固情况）
+        requestAnimationFrame(() => {
+            if (charts.topology) charts.topology.resize();
+        });
+
+        // 3. 延迟 100ms 再 resize 一次（兜底方案，针对某些父容器高度塌陷的情况）
+        setTimeout(() => {
+            if (charts.topology) charts.topology.resize();
+        }, 100);
 
         // 定时更新拓扑图（模拟攻击节点）
         setInterval(() => {

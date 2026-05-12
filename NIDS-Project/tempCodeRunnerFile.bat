@@ -1,0 +1,1 @@
+start "NeuroSec Frontend" cmd /k "npm run dev"

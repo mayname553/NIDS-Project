@@ -7,6 +7,8 @@ const API_BASE = 'http://localhost:5000/api';
 // 全局变量
 let charts = {};
 let updateInterval = null;
+let selectedFile = null;
+let uploadHistory = JSON.parse(localStorage.getItem('uploadHistory') || '[]');
 
 // ==================== 初始化 ====================
 
@@ -16,6 +18,9 @@ async function init() {
 
         // 初始化图表
         initCharts();
+
+        // 初始化上传功能
+        initUploadFeature();
 
         // 加载初始数据
         await loadInitialData();
@@ -752,6 +757,468 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
+// ==================== PCAP文件上传功能 ====================
+
+/**
+ * 初始化上传功能
+ */
+function initUploadFeature() {
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('pcap-file-input');
+    const uploadBtn = document.getElementById('upload-btn');
+    const resetBtn = document.getElementById('reset-upload-btn');
+    const removeFileBtn = document.getElementById('remove-file-btn');
+    const clearHistoryBtn = document.getElementById('clear-history-btn');
+
+    if (!uploadArea || !fileInput) {
+        console.warn('上传组件未找到，跳过初始化');
+        return;
+    }
+
+    // 点击上传区域触发文件选择
+    uploadArea.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // 文件选择事件
+    fileInput.addEventListener('change', (e) => {
+        handleFileSelect(e.target.files[0]);
+    });
+
+    // 拖拽上传功能
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('drag-over');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('drag-over');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileSelect(files[0]);
+        }
+    });
+
+    // 上传按钮
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', handleUpload);
+    }
+
+    // 重置按钮
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetUpload);
+    }
+
+    // 移除文件按钮
+    if (removeFileBtn) {
+        removeFileBtn.addEventListener('click', resetUpload);
+    }
+
+    // 清空历史按钮
+    if (clearHistoryBtn) {
+        clearHistoryBtn.addEventListener('click', clearUploadHistory);
+    }
+
+    console.log('上传功能初始化完成');
+}
+
+/**
+ * 处理文件选择
+ */
+function handleFileSelect(file) {
+    if (!file) return;
+
+    // 验证文件类型
+    const validExtensions = ['.pcap', '.pcapng'];
+    const fileName = file.name.toLowerCase();
+    const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+
+    if (!isValid) {
+        showNotification('仅支持 .pcap 或 .pcapng 格式文件！', 'error');
+        return;
+    }
+
+    // 验证文件大小（100MB）
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+        showNotification('文件大小不能超过 100MB！', 'error');
+        return;
+    }
+
+    // 保存选中的文件
+    selectedFile = file;
+
+    // 更新UI显示
+    updateFileDisplay(file);
+
+    // 启用上传按钮
+    const uploadBtn = document.getElementById('upload-btn');
+    if (uploadBtn) {
+        uploadBtn.disabled = false;
+    }
+
+    // 添加日志
+    addLogEntry({
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        message: `已选择文件: ${file.name} (${formatFileSize(file.size)})`
+    });
+}
+
+/**
+ * 更新文件显示
+ */
+function updateFileDisplay(file) {
+    const selectedFileDisplay = document.getElementById('selected-file-display');
+    const fileNameEl = document.getElementById('selected-file-name');
+    const fileSizeEl = document.getElementById('selected-file-size');
+
+    if (selectedFileDisplay && fileNameEl && fileSizeEl) {
+        fileNameEl.textContent = file.name;
+        fileSizeEl.textContent = formatFileSize(file.size);
+        selectedFileDisplay.style.display = 'block';
+    }
+}
+
+/**
+ * 格式化文件大小
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+/**
+ * 处理文件上传
+ */
+async function handleUpload() {
+    if (!selectedFile) {
+        showNotification('请先选择一个文件！', 'warning');
+        return;
+    }
+
+    const uploadBtn = document.getElementById('upload-btn');
+    const progressContainer = document.getElementById('upload-progress-container');
+    const progressBar = document.getElementById('progress-bar-fill');
+    const progressStatus = document.getElementById('progress-status');
+    const progressPercent = document.getElementById('progress-percent');
+
+    try {
+        // 禁用上传按钮
+        if (uploadBtn) {
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 上传中...';
+        }
+
+        // 显示进度条
+        if (progressContainer) {
+            progressContainer.classList.add('active');
+        }
+
+        // 模拟进度更新
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            if (progress < 90) {
+                progress += 10;
+                updateProgress(progress, '正在上传文件...');
+            }
+        }, 200);
+
+        // 创建FormData
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        // 添加上传日志
+        addLogEntry({
+            timestamp: new Date().toISOString(),
+            level: 'info',
+            message: `开始上传文件: ${selectedFile.name}`
+        });
+
+        // 发送请求
+        const response = await fetch(`${API_BASE}/upload`, {
+            method: 'POST',
+            body: formData
+        });
+
+        // 清除进度模拟
+        clearInterval(progressInterval);
+
+        if (response.ok) {
+            const result = await response.json();
+
+            // 完成进度
+            updateProgress(100, '上传成功！', 'success');
+
+            // 添加到历史记录
+            addToUploadHistory({
+                filename: selectedFile.name,
+                size: formatFileSize(selectedFile.size),
+                status: 'success',
+                message: result.message || '上传成功'
+            });
+
+            // 添加成功日志
+            addLogEntry({
+                timestamp: new Date().toISOString(),
+                level: 'info',
+                message: `文件上传成功: ${selectedFile.name} - ${result.message || '已接收'}`
+            });
+
+            showNotification('文件上传成功！系统正在分析...', 'success');
+
+            // 3秒后重置
+            setTimeout(() => {
+                resetUpload();
+            }, 3000);
+
+        } else {
+            const errorText = await response.text();
+
+            // 显示错误
+            updateProgress(100, '上传失败！', 'error');
+
+            // 添加到历史记录
+            addToUploadHistory({
+                filename: selectedFile.name,
+                size: formatFileSize(selectedFile.size),
+                status: 'error',
+                message: errorText || '上传失败'
+            });
+
+            // 添加错误日志
+            addLogEntry({
+                timestamp: new Date().toISOString(),
+                level: 'error',
+                message: `文件上传失败: ${selectedFile.name} - ${errorText}`
+            });
+
+            showNotification(`上传失败: ${errorText}`, 'error');
+
+            // 3秒后重置进度条
+            setTimeout(() => {
+                if (progressContainer) {
+                    progressContainer.classList.remove('active');
+                }
+            }, 3000);
+        }
+
+    } catch (error) {
+        console.error('上传错误:', error);
+
+        // 显示错误
+        updateProgress(100, '网络错误！', 'error');
+
+        // 添加到历史记录
+        addToUploadHistory({
+            filename: selectedFile.name,
+            size: formatFileSize(selectedFile.size),
+            status: 'error',
+            message: error.message || '网络错误'
+        });
+
+        // 添加错误日志
+        addLogEntry({
+            timestamp: new Date().toISOString(),
+            level: 'error',
+            message: `上传网络错误: ${error.message}`
+        });
+
+        showNotification(`网络错误: ${error.message}`, 'error');
+
+        // 3秒后重置进度条
+        setTimeout(() => {
+            const progressContainer = document.getElementById('upload-progress-container');
+            if (progressContainer) {
+                progressContainer.classList.remove('active');
+            }
+        }, 3000);
+
+    } finally {
+        // 恢复上传按钮
+        if (uploadBtn) {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="fas fa-rocket"></i> 启动上传与分析';
+        }
+    }
+}
+
+/**
+ * 更新上传进度
+ */
+function updateProgress(percent, status, type = 'normal') {
+    const progressBar = document.getElementById('progress-bar-fill');
+    const progressStatus = document.getElementById('progress-status');
+    const progressPercent = document.getElementById('progress-percent');
+
+    if (progressBar) {
+        progressBar.style.width = percent + '%';
+
+        // 移除所有状态类
+        progressBar.classList.remove('success', 'error');
+
+        // 添加新状态类
+        if (type === 'success') {
+            progressBar.classList.add('success');
+        } else if (type === 'error') {
+            progressBar.classList.add('error');
+        }
+    }
+
+    if (progressStatus) {
+        progressStatus.textContent = status;
+    }
+
+    if (progressPercent) {
+        progressPercent.textContent = percent + '%';
+    }
+}
+
+/**
+ * 重置上传
+ */
+function resetUpload() {
+    // 清空选中的文件
+    selectedFile = null;
+
+    // 重置文件输入
+    const fileInput = document.getElementById('pcap-file-input');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+
+    // 隐藏文件显示
+    const selectedFileDisplay = document.getElementById('selected-file-display');
+    if (selectedFileDisplay) {
+        selectedFileDisplay.style.display = 'none';
+    }
+
+    // 禁用上传按钮
+    const uploadBtn = document.getElementById('upload-btn');
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+    }
+
+    // 隐藏进度条
+    const progressContainer = document.getElementById('upload-progress-container');
+    if (progressContainer) {
+        progressContainer.classList.remove('active');
+    }
+
+    // 重置进度
+    updateProgress(0, '准备上传...', 'normal');
+}
+
+/**
+ * 添加到上传历史
+ */
+function addToUploadHistory(fileInfo) {
+    const historyItem = {
+        filename: fileInfo.filename,
+        size: fileInfo.size,
+        status: fileInfo.status,
+        message: fileInfo.message || '',
+        timestamp: new Date().toISOString()
+    };
+
+    // 添加到历史数组开头
+    uploadHistory.unshift(historyItem);
+
+    // 只保留最近20条
+    if (uploadHistory.length > 20) {
+        uploadHistory = uploadHistory.slice(0, 20);
+    }
+
+    // 保存到localStorage
+    localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
+
+    // 重新渲染历史列表
+    renderUploadHistory();
+}
+
+/**
+ * 渲染上传历史
+ */
+function renderUploadHistory() {
+    const historyList = document.getElementById('history-list');
+    if (!historyList) return;
+
+    if (uploadHistory.length === 0) {
+        historyList.innerHTML = `
+            <div class="history-empty">
+                <i class="fas fa-inbox"></i>
+                <div>暂无上传记录</div>
+            </div>
+        `;
+        return;
+    }
+
+    historyList.innerHTML = uploadHistory.map(item => {
+        const statusClass = item.status === 'success' ? 'success' : 'error';
+        const statusText = item.status === 'success' ? '成功' : '失败';
+        const time = new Date(item.timestamp).toLocaleString('zh-CN');
+
+        return `
+            <div class="history-item">
+                <div class="history-item-header">
+                    <div class="history-file-name">
+                        <i class="fas fa-file-archive"></i>
+                        <span>${item.filename}</span>
+                    </div>
+                    <span class="history-status-badge ${statusClass}">${statusText}</span>
+                </div>
+                <div class="history-item-footer">
+                    <div class="history-time">
+                        <i class="far fa-clock"></i>
+                        <span>${time}</span>
+                    </div>
+                    <div class="history-size">
+                        <i class="fas fa-hdd"></i>
+                        <span>${item.size}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * 清空上传历史
+ */
+function clearUploadHistory() {
+    if (!confirm('确定要清空所有上传历史记录吗？')) {
+        return;
+    }
+
+    // 清空数组
+    uploadHistory = [];
+
+    // 清空localStorage
+    localStorage.removeItem('uploadHistory');
+
+    // 重新渲染
+    renderUploadHistory();
+
+    // 显示通知
+    showNotification('上传历史已清空', 'success');
+
+    // 添加日志
+    addLogEntry({
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        message: '上传历史记录已清空'
+    });
+}
+
 // ==================== 页面加载 ====================
 
 // 页面加载完成后初始化
@@ -770,3 +1237,479 @@ window.addEventListener('beforeunload', () => {
         if (chart) chart.dispose();
     });
 });
+
+// ==================== PCAP文件上传功能 ====================
+
+/**
+ * 初始化上传功能
+ */
+function initUploadFeature() {
+    console.log('初始化PCAP上传功能...');
+
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('pcap-file-input');
+    const uploadBtn = document.getElementById('upload-btn');
+    const resetBtn = document.getElementById('reset-upload-btn');
+    const removeFileBtn = document.getElementById('remove-file-btn');
+    const clearHistoryBtn = document.getElementById('clear-history-btn');
+
+    if (!uploadArea || !fileInput) {
+        console.warn('上传组件未找到，跳过初始化');
+        return;
+    }
+
+    // 点击上传区域触发文件选择
+    uploadArea.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // 文件选择事件
+    fileInput.addEventListener('change', (e) => {
+        handleFileSelect(e.target.files[0]);
+    });
+
+    // 拖拽上传功能
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('drag-over');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('drag-over');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileSelect(files[0]);
+        }
+    });
+
+    // 上传按钮
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', handleUpload);
+    }
+
+    // 重置按钮
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetUpload);
+    }
+
+    // 移除文件按钮
+    if (removeFileBtn) {
+        removeFileBtn.addEventListener('click', resetUpload);
+    }
+
+    // 清空历史按钮
+    if (clearHistoryBtn) {
+        clearHistoryBtn.addEventListener('click', clearUploadHistory);
+    }
+
+    console.log('PCAP上传功能初始化完成');
+}
+
+/**
+ * 处理文件选择
+ */
+function handleFileSelect(file) {
+    if (!file) return;
+
+    console.log('选择文件:', file.name, file.size);
+
+    // 验证文件类型
+    const validExtensions = ['.pcap', '.pcapng'];
+    const fileName = file.name.toLowerCase();
+    const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+
+    if (!isValid) {
+        showNotification('仅支持 .pcap 或 .pcapng 格式文件！', 'error');
+        return;
+    }
+
+    // 验证文件大小（100MB）
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+        showNotification('文件大小不能超过 100MB！', 'error');
+        return;
+    }
+
+    // 保存选中的文件
+    selectedFile = file;
+
+    // 更新UI显示
+    updateFileDisplay(file);
+
+    // 启用上传按钮
+    const uploadBtn = document.getElementById('upload-btn');
+    if (uploadBtn) {
+        uploadBtn.disabled = false;
+    }
+
+    // 添加日志
+    addLogEntry({
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        message: `已选择文件: ${file.name} (${formatFileSize(file.size)})`
+    });
+}
+
+/**
+ * 更新文件显示
+ */
+function updateFileDisplay(file) {
+    const uploadArea = document.getElementById('upload-area');
+    const selectedFileDisplay = document.getElementById('selected-file-display');
+    const fileNameEl = document.getElementById('selected-file-name');
+    const fileSizeEl = document.getElementById('selected-file-size');
+
+    if (uploadArea) {
+        uploadArea.style.display = 'none';
+    }
+
+    if (selectedFileDisplay) {
+        selectedFileDisplay.style.display = 'block';
+    }
+
+    if (fileNameEl) {
+        fileNameEl.textContent = file.name;
+    }
+
+    if (fileSizeEl) {
+        fileSizeEl.textContent = formatFileSize(file.size);
+    }
+}
+
+/**
+ * 重置上传
+ */
+function resetUpload() {
+    selectedFile = null;
+
+    // 重置文件输入
+    const fileInput = document.getElementById('pcap-file-input');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+
+    // 重置UI
+    const uploadArea = document.getElementById('upload-area');
+    const selectedFileDisplay = document.getElementById('selected-file-display');
+    const uploadBtn = document.getElementById('upload-btn');
+    const progressContainer = document.getElementById('upload-progress-container');
+
+    if (uploadArea) {
+        uploadArea.style.display = 'block';
+    }
+
+    if (selectedFileDisplay) {
+        selectedFileDisplay.style.display = 'none';
+    }
+
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+    }
+
+    if (progressContainer) {
+        progressContainer.classList.remove('active');
+    }
+
+    // 重置进度条
+    updateProgress(0, '准备上传...');
+}
+
+/**
+ * 处理文件上传
+ */
+async function handleUpload() {
+    if (!selectedFile) {
+        showNotification('请先选择文件！', 'warning');
+        return;
+    }
+
+    console.log('开始上传文件:', selectedFile.name);
+
+    const uploadBtn = document.getElementById('upload-btn');
+    const progressContainer = document.getElementById('upload-progress-container');
+    const progressBarFill = document.getElementById('progress-bar-fill');
+
+    // 禁用上传按钮
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 上传中...';
+    }
+
+    // 显示进度条
+    if (progressContainer) {
+        progressContainer.classList.add('active');
+    }
+
+    // 重置进度条样式
+    if (progressBarFill) {
+        progressBarFill.className = 'progress-bar-fill';
+    }
+
+    // 添加日志
+    addLogEntry({
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        message: `开始上传文件: ${selectedFile.name}`
+    });
+
+    try {
+        // 创建FormData
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        // 模拟上传进度
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            if (progress < 90) {
+                progress += 10;
+                updateProgress(progress, '正在上传...');
+            }
+        }, 200);
+
+        // 发送请求
+        const response = await fetch(`${API_BASE}/upload`, {
+            method: 'POST',
+            body: formData
+        });
+
+        // 清除进度模拟
+        clearInterval(progressInterval);
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log('上传成功:', result);
+
+            // 完成进度
+            updateProgress(100, '上传成功！', 'success');
+
+            // 添加到历史记录
+            addToUploadHistory({
+                filename: result.filename || selectedFile.name,
+                size: formatFileSize(selectedFile.size),
+                status: 'success',
+                message: result.message || '上传成功'
+            });
+
+            // 添加成功日志
+            addLogEntry({
+                timestamp: new Date().toISOString(),
+                level: 'info',
+                message: `文件上传成功: ${result.filename || selectedFile.name}`
+            });
+
+            // 显示成功通知
+            showNotification('文件上传成功！系统正在分析...', 'success');
+
+            // 2秒后重置
+            setTimeout(() => {
+                resetUpload();
+            }, 2000);
+
+        } else {
+            const errorText = await response.text();
+            console.error('上传失败:', response.status, errorText);
+
+            // 显示错误进度
+            updateProgress(100, '上传失败！', 'error');
+
+            // 添加到历史记录
+            addToUploadHistory({
+                filename: selectedFile.name,
+                size: formatFileSize(selectedFile.size),
+                status: 'error',
+                message: errorText || '上传失败'
+            });
+
+            // 添加错误日志
+            addLogEntry({
+                timestamp: new Date().toISOString(),
+                level: 'error',
+                message: `文件上传失败: ${errorText}`
+            });
+
+            // 显示错误通知
+            showNotification(`上传失败: ${errorText}`, 'error');
+
+            // 3秒后重置按钮
+            setTimeout(() => {
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerHTML = '<i class="fas fa-rocket"></i> 启动上传与分析';
+                }
+            }, 3000);
+        }
+
+    } catch (error) {
+        console.error('上传错误:', error);
+
+        // 显示错误进度
+        updateProgress(100, '网络错误！', 'error');
+
+        // 添加到历史记录
+        addToUploadHistory({
+            filename: selectedFile.name,
+            size: formatFileSize(selectedFile.size),
+            status: 'error',
+            message: error.message || '网络错误'
+        });
+
+        // 添加错误日志
+        addLogEntry({
+            timestamp: new Date().toISOString(),
+            level: 'error',
+            message: `上传网络错误: ${error.message}`
+        });
+
+        // 显示错误通知
+        showNotification(`网络错误: ${error.message}`, 'error');
+
+        // 3秒后重置按钮
+        setTimeout(() => {
+            if (uploadBtn) {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<i class="fas fa-rocket"></i> 启动上传与分析';
+            }
+        }, 3000);
+    }
+}
+
+/**
+ * 更新上传进度
+ */
+function updateProgress(percent, status, type = 'normal') {
+    const progressBarFill = document.getElementById('progress-bar-fill');
+    const progressPercent = document.getElementById('progress-percent');
+    const progressStatus = document.getElementById('progress-status');
+
+    if (progressBarFill) {
+        progressBarFill.style.width = `${percent}%`;
+
+        // 根据类型设置样式
+        if (type === 'success') {
+            progressBarFill.classList.add('success');
+        } else if (type === 'error') {
+            progressBarFill.classList.add('error');
+        }
+    }
+
+    if (progressPercent) {
+        progressPercent.textContent = `${percent}%`;
+    }
+
+    if (progressStatus) {
+        progressStatus.textContent = status;
+    }
+}
+
+/**
+ * 添加到上传历史
+ */
+function addToUploadHistory(item) {
+    const historyItem = {
+        filename: item.filename,
+        size: item.size,
+        status: item.status,
+        message: item.message,
+        timestamp: new Date().toISOString()
+    };
+
+    // 添加到历史数组开头
+    uploadHistory.unshift(historyItem);
+
+    // 只保留最近20条
+    if (uploadHistory.length > 20) {
+        uploadHistory = uploadHistory.slice(0, 20);
+    }
+
+    // 保存到localStorage
+    localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
+
+    // 重新渲染历史列表
+    renderUploadHistory();
+}
+
+/**
+ * 渲染上传历史
+ */
+function renderUploadHistory() {
+    const historyList = document.getElementById('history-list');
+    if (!historyList) return;
+
+    if (uploadHistory.length === 0) {
+        historyList.innerHTML = `
+            <div class="history-empty">
+                <i class="fas fa-inbox"></i>
+                <div>暂无上传记录</div>
+            </div>
+        `;
+        return;
+    }
+
+    historyList.innerHTML = uploadHistory.map(item => {
+        const time = new Date(item.timestamp).toLocaleString('zh-CN');
+        const statusClass = item.status === 'success' ? 'success' : 'error';
+        const statusText = item.status === 'success' ? '成功' : '失败';
+
+        return `
+            <div class="history-item">
+                <div class="history-item-header">
+                    <div class="history-file-name">
+                        <i class="fas fa-file-archive"></i>
+                        <span>${item.filename}</span>
+                    </div>
+                    <span class="history-status-badge ${statusClass}">${statusText}</span>
+                </div>
+                <div class="history-item-footer">
+                    <div class="history-time">
+                        <i class="far fa-clock"></i>
+                        <span>${time}</span>
+                    </div>
+                    <div class="history-size">
+                        <i class="fas fa-hdd"></i>
+                        <span>${item.size}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * 清空上传历史
+ */
+function clearUploadHistory() {
+    if (!confirm('确定要清空所有上传历史记录吗？')) {
+        return;
+    }
+
+    uploadHistory = [];
+    localStorage.removeItem('uploadHistory');
+    renderUploadHistory();
+
+    showNotification('上传历史已清空', 'success');
+
+    addLogEntry({
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        message: '上传历史已清空'
+    });
+}
+
+/**
+ * 格式化文件大小
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}

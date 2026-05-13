@@ -505,7 +505,7 @@ if __name__ == '__main__':
     print("="*50)
     print("[NIDS] 网络入侵检测系统 API 服务器")
     print("="*50)
-    print("服务地址: http://localhost:5000")
+    print("服务地址: http://localhost:5001")
     print("API文档:")
     print("  GET  /api/health           - 健康检查")
     print("  POST /api/detection/start  - 启动检测")
@@ -526,4 +526,4 @@ if __name__ == '__main__':
     print("正在启动服务器...")
     print("")
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)

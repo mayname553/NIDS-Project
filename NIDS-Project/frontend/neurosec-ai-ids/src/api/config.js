@@ -1,7 +1,7 @@
 // API 配置 - 基于智能模型与动态优化的轻量级网络入侵检测系统
 const API_CONFIG = {
     // 基础URL - 连接到 Flask 后端
-    BASE_URL: 'http://localhost:5000/api',
+    BASE_URL: 'http://localhost:5001/api',
 
     // 超时设置
     TIMEOUT: 30000,
@@ -19,7 +19,7 @@ const API_CONFIG = {
     },
 
     // WebSocket配置（暂未实现，使用轮询）
-    WS_URL: 'ws://localhost:5000/ws',
+    WS_URL: 'ws://localhost:5001/ws',
 
     // 心跳间隔（秒）
     HEARTBEAT_INTERVAL: 30,

@@ -2,15 +2,15 @@
 const config = {
     // 开发环境
     development: {
-        apiBaseUrl: 'http://localhost:5000/api',
-        wsUrl: 'ws://localhost:5000/ws',
+        apiBaseUrl: 'http://localhost:5001/api',
+        wsUrl: 'ws://localhost:5001/ws',
         debug: true
     },
 
     // 生产环境
     production: {
-        apiBaseUrl: 'http://localhost:5000/api',
-        wsUrl: 'ws://localhost:5000/ws',
+        apiBaseUrl: 'http://localhost:5001/api',
+        wsUrl: 'ws://localhost:5001/ws',
         debug: false
     }
 };

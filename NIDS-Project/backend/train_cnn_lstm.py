@@ -29,29 +29,26 @@ class CNNLSTMTrainer:
         self.history = None
         self.metrics = {}
 
-    def load_data(self, data_path='backend/dataset/cicids_processed.npz'):
+    def load_data(self, data_path='backend/data/processed/nsl_kdd_processed.npz'):
         """加载预处理后的数据"""
         logger.info("="*60)
         logger.info("加载数据...")
         logger.info("="*60)
 
         if not os.path.exists(data_path):
-            raise FileNotFoundError(f"数据文件不存在: {data_path}\n请先运行 cicids_preprocessing.py")
+            raise FileNotFoundError(f"数据文件不存在: {data_path}\n请先运行 nsl_kdd_preprocessing.py")
 
         # 加载数据
         data = np.load(data_path, allow_pickle=True)
-        X = data['X']
-        y = data['y']
-        feature_names = data['feature_names']
+        X_train = data['X_train']
+        X_test = data['X_test']
+        y_train = data['y_train']
+        y_test = data['y_test']
 
         logger.info(f"✅ 数据加载完成")
-        logger.info(f"   样本数: {len(X)}")
-        logger.info(f"   特征数: {X.shape[1]}")
-
-        # 划分训练集和测试集
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
+        logger.info(f"   训练集样本数: {len(X_train)}")
+        logger.info(f"   测试集样本数: {len(X_test)}")
+        logger.info(f"   特征数: {X_train.shape[1]}")
 
         # 为LSTM准备数据：添加时间步维度
         # 将特征reshape为 (samples, timesteps, features)
@@ -154,7 +151,10 @@ class CNNLSTMTrainer:
         logger.info(f"   Optimizer: Adam (lr=0.001)")
 
         # 创建回调函数
-        os.makedirs('backend/model/trained', exist_ok=True)
+        model_dir = os.path.abspath('model/trained')
+        log_dir = os.path.abspath('logs')
+        os.makedirs(model_dir, exist_ok=True)
+        os.makedirs(log_dir, exist_ok=True)
 
         callback_list = [
             # 早停
@@ -174,16 +174,16 @@ class CNNLSTMTrainer:
             ),
             # 保存最佳模型
             callbacks.ModelCheckpoint(
-                'backend/model/trained/cnn_lstm_best.keras',
+                os.path.join(model_dir, 'cnn_lstm_best.keras'),
                 monitor='val_recall',
                 save_best_only=True,
                 verbose=1
             ),
-            # TensorBoard
-            callbacks.TensorBoard(
-                log_dir='backend/logs',
-                histogram_freq=1
-            )
+            # TensorBoard 暂时禁用，因为路径问题
+            # callbacks.TensorBoard(
+            #     log_dir=log_dir,
+            #     histogram_freq=1
+            # )
         ]
 
         # 训练模型

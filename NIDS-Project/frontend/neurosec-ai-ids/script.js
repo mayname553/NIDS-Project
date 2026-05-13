@@ -2,7 +2,7 @@
 // 基于智能模型与动态优化的轻量级网络入侵检测系统
 
 // API 配置
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'http://localhost:5001/api';
 
 // 全局变量
 let charts = {};
